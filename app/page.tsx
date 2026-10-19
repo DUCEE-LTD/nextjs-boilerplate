@@ -1,65 +1,46 @@
-import Image from "next/image";
-
-export default function Home() {
+"use client"
+import { useState } from "react"
+const REAL_SCHOOLS = [
+  { code: "SCH-001", name: "ECWA Academy Badariya" },
+  { code: "SCH-002", name: "Joda Primary School" },
+  { code: "SCH-003", name: "Brilliance Primary School" },
+  { code: "SCH-004", name: "High Standard Primary School" },
+  { code: "SCH-005", name: "Royal Leads Academy" },
+  { code: "SCH-006", name: "Army Childrens School" },
+  { code: "SCH-007", name: "Kauran Gandu Model Primary School" },
+  { code: "SCH-008", name: "Gesse Phase 1 Model Primary School" },
+  { code: "SCH-009", name: "Tudun Wada Model Primary School" },
+  { code: "SCH-010", name: "Bayan Tasha Model Primary School" },
+]
+export default function DuceeForesightPortal() {
+  const [form, setForm] = useState({ name:"", phone:"", track:"pilot_schools", school:"" })
+  const [code, setCode] = useState("")
+  const enroll = () => {
+    const enrollmentCode = `FS-${form.school || 'PUBLIC'}-${Date.now().toString().slice(-5)}-DUCEE`
+    setCode(enrollmentCode)
+  }
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div style={{ padding: 24, fontFamily: 'system-ui', maxWidth: 720, margin: '0 auto' }}>
+      <div style={{ background: '#000', color: '#fff', padding: 16, borderRadius: 12 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 900, margin: 0 }}>DUCEE LTD - RC 2000452</h1>
+        <p style={{ margin: '4px 0 0', opacity: 0.8 }}>Foresight Academy - Birnin Kebbi - 10 Schools</p>
+      </div>
+      <h2 style={{ fontSize: 20, fontWeight: 800, marginTop: 16 }}>10 Pilot Schools Portal - 5,000 Pupils</h2>
+      <p style={{ color: '#555' }}>Subjects: Hausa, English, Mathematics, BST</p>
+      <div style={{ display: 'grid', gap: 12, marginTop: 20 }}>
+        <input placeholder="Pupil Full Name" style={{ border: '1.5px solid #ddd', padding: 14, borderRadius: 10 }} onChange={e=>setForm({...form, name:e.target.value})} />
+        <input placeholder="Parent Phone" style={{ border: '1.5px solid #ddd', padding: 14, borderRadius: 10 }} onChange={e=>setForm({...form, phone:e.target.value})} />
+        <select style={{ border: '1.5px solid #ddd', padding: 14, borderRadius: 10 }} onChange={e=>setForm({...form, track:e.target.value})}>
+          <option value="pilot_schools">Track 1 - 10 Pilot Schools</option>
+          <option value="general_public">Track 2 - General Public</option>
+        </select>
+        <select style={{ border: '1.5px solid #ddd', padding: 14, borderRadius: 10 }} onChange={e=>setForm({...form, school:e.target.value})}>
+          <option value="">Select Real School</option>
+          {REAL_SCHOOLS.map(s=><option key={s.code} value={s.code}>{s.name} - {s.code}</option>)}
+        </select>
+        <button onClick={enroll} style={{ background: '#000', color: '#fff', padding: 16, borderRadius: 10, fontWeight: 800 }}>GENERATE ENROLLMENT CODE</button>
+        {code && <div style={{ background: '#dcfce7', border: '2px solid #22c55e', padding: 18, borderRadius: 12, textAlign: 'center', fontWeight: 900 }}>{code}</div>}
+      </div>
     </div>
-  );
+  )
 }
