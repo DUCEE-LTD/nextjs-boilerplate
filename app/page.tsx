@@ -1,46 +1,90 @@
-"use client"
-import { useState } from "react"
-const REAL_SCHOOLS = [
-  { code: "SCH-001", name: "ECWA Academy Badariya" },
-  { code: "SCH-002", name: "Joda Primary School" },
-  { code: "SCH-003", name: "Brilliance Primary School" },
-  { code: "SCH-004", name: "High Standard Primary School" },
-  { code: "SCH-005", name: "Royal Leads Academy" },
-  { code: "SCH-006", name: "Army Childrens School" },
-  { code: "SCH-007", name: "Kauran Gandu Model Primary School" },
-  { code: "SCH-008", name: "Gesse Phase 1 Model Primary School" },
-  { code: "SCH-009", name: "Tudun Wada Model Primary School" },
-  { code: "SCH-010", name: "Bayan Tasha Model Primary School" },
-]
+'use client';
+import { useEffect, useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+);
+
+type School = { code: string; name: string };
+
 export default function DuceeForesightPortal() {
-  const [form, setForm] = useState({ name:"", phone:"", track:"pilot_schools", school:"" })
-  const [code, setCode] = useState("")
-  const enroll = () => {
-    const enrollmentCode = `FS-${form.school || 'PUBLIC'}-${Date.now().toString().slice(-5)}-DUCEE`
-    setCode(enrollmentCode)
+  const [schools, setSchools] = useState<School[]>([]);
+  const [pupilName, setPupilName] = useState('');
+  const [parentPhone, setParentPhone] = useState('');
+  const [track, setTrack] = useState('JAMB');
+  const [schoolCode, setSchoolCode] = useState('SCH-001');
+  const [enrollments, setEnrollments] = useState<any[]>([]);
+  const [lastCode, setLastCode] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    supabase.from('schools').select('*').order('code').then(({data}) => {
+      if(data) { setSchools(data); }
+    });
+    loadEnrollments();
+  }, []);
+
+  async function loadEnrollments() {
+    const {data} = await supabase.from('foresight_enrollments').select('*').order('created_at',{ascending:false}).limit(20);
+    if(data) setEnrollments(data);
   }
+
+  async function handleEnroll() {
+    if(!pupilName) { alert('Enter pupil name'); return; }
+    setLoading(true);
+    const code = `DUCEE-${schoolCode.split('-')[1]}-${track.substring(0,3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+    const {error} = await supabase.from('foresight_enrollments').insert({
+      pupil_name: pupilName,
+      parent_phone: parentPhone,
+      track,
+      school_code: schoolCode,
+      enrollment_code: code
+    });
+    setLoading(false);
+    if(error){ alert('Error: '+error.message); return; }
+    setLastCode(code);
+    setPupilName(''); setParentPhone('');
+    loadEnrollments();
+    alert('ENROLLED! Code: '+code);
+  }
+
   return (
-    <div style={{ padding: 24, fontFamily: 'system-ui', maxWidth: 720, margin: '0 auto' }}>
-      <div style={{ background: '#000', color: '#fff', padding: 16, borderRadius: 12 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 900, margin: 0 }}>DUCEE LTD - RC 2000452</h1>
-        <p style={{ margin: '4px 0 0', opacity: 0.8 }}>Foresight Academy - Birnin Kebbi - 10 Schools</p>
-      </div>
-      <h2 style={{ fontSize: 20, fontWeight: 800, marginTop: 16 }}>10 Pilot Schools Portal - 5,000 Pupils</h2>
-      <p style={{ color: '#555' }}>Subjects: Hausa, English, Mathematics, BST</p>
-      <div style={{ display: 'grid', gap: 12, marginTop: 20 }}>
-        <input placeholder="Pupil Full Name" style={{ border: '1.5px solid #ddd', padding: 14, borderRadius: 10 }} onChange={e=>setForm({...form, name:e.target.value})} />
-        <input placeholder="Parent Phone" style={{ border: '1.5px solid #ddd', padding: 14, borderRadius: 10 }} onChange={e=>setForm({...form, phone:e.target.value})} />
-        <select style={{ border: '1.5px solid #ddd', padding: 14, borderRadius: 10 }} onChange={e=>setForm({...form, track:e.target.value})}>
-          <option value="pilot_schools">Track 1 - 10 Pilot Schools</option>
-          <option value="general_public">Track 2 - General Public</option>
+    <div style={{fontFamily:'system-ui', maxWidth:900, margin:'20px auto', padding:20}}>
+      <h1 style={{fontSize:32, fontWeight:900}}>DUCEE LTD — FORESIGHT 400 PORTAL 🧠</h1>
+      <p style={{color:'green', fontWeight:700}}>✅ Connected to ducee-core-os Supabase | LIVE DB</p>
+      <p>Total Enrolled (DB): <b>{enrollments.length}</b> {lastCode && <>| Last Code: <b style={{color:'blue'}}>{lastCode}</b></>}</p>
+
+      <div style={{display:'grid', gap:12, background:'#f8fafc', padding:20, borderRadius:16, marginTop:20}}>
+        <h3>Enroll Pupil (Saves to Supabase)</h3>
+        <input placeholder="Pupil Full Name" value={pupilName} onChange={e=>setPupilName(e.target.value)} style={{padding:12, borderRadius:8, border:'1px solid #ccc'}}/>
+        <input placeholder="Parent Phone (080...)" value={parentPhone} onChange={e=>setParentPhone(e.target.value)} style={{padding:12, borderRadius:8, border:'1px solid #ccc'}}/>
+        <select value={track} onChange={e=>setTrack(e.target.value)} style={{padding:12, borderRadius:8}}>
+          <option>JAMB</option><option>WAEC</option><option>NECO</option><option>Primary 5</option><option>JSCE</option>
         </select>
-        <select style={{ border: '1.5px solid #ddd', padding: 14, borderRadius: 10 }} onChange={e=>setForm({...form, school:e.target.value})}>
-          <option value="">Select Real School</option>
-          {REAL_SCHOOLS.map(s=><option key={s.code} value={s.code}>{s.name} - {s.code}</option>)}
+        <select value={schoolCode} onChange={e=>setSchoolCode(e.target.value)} style={{padding:12, borderRadius:8}}>
+          {schools.map(s=> <option key={s.code} value={s.code}>{s.code} - {s.name}</option>)}
         </select>
-        <button onClick={enroll} style={{ background: '#000', color: '#fff', padding: 16, borderRadius: 10, fontWeight: 800 }}>GENERATE ENROLLMENT CODE</button>
-        {code && <div style={{ background: '#dcfce7', border: '2px solid #22c55e', padding: 18, borderRadius: 12, textAlign: 'center', fontWeight: 900 }}>{code}</div>}
+        <button onClick={handleEnroll} disabled={loading} style={{padding:14, background:'black', color:'white', borderRadius:12, fontWeight:800}}>
+          {loading? 'Saving to DB...':'ENROLL & GENERATE DUCEE CODE'}
+        </button>
       </div>
+
+      <div style={{marginTop:24}}>
+        <h3>Live Enrollments from Supabase (ducee-core-os)</h3>
+        <div style={{display:'grid', gap:8}}>
+          {enrollments.map((e:any)=>
+            <div key={e.id} style={{padding:12, border:'1px solid #eee', borderRadius:10, display:'flex', justifyContent:'space-between'}}>
+              <span><b>{e.pupil_name}</b> — {e.track} — {e.school_code}</span>
+              <span style={{fontFamily:'monospace', color:'blue'}}>{e.enrollment_code}</span>
+            </div>
+          )}
+          {enrollments.length===0 && <p>No enrollments yet. Enroll first pupil!</p>}
+        </div>
+      </div>
+
+      <p style={{marginTop:30, fontSize:12, color:'#666'}}>Schools: {schools.length} loaded | DB: foresight_enrollments | Project: ducee-core-os | Next.js 16.2.4</p>
     </div>
-  )
+  );
 }
