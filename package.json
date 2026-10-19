@@ -1,27 +1,206 @@
-{
-  "name": "nextjs",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.45.0",
-    "next": "16.2.4",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.4",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+"use client";
+import { useState, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+const PILOT_SCHOOLS = [
+  "ECWA Academy Badariya, Birnin Kebbi",
+  "Joda Nursery & Primary School, Birnin Kebbi",
+  "Brilliance Nursery & Primary School, Birnin Kebbi",
+  "High Standard Nursery & Primary School, Birnin Kebbi",
+  "Royal Kids Academy, Birnin Kebbi",
+  "Kauran Gwandu Model Primary School, Birnin Kebbi",
+  "Gesse Phase 1 Model Primary School, Birnin Kebbi",
+  "Tudun Wada Model Primary School, Birnin Kebbi",
+  "Mechanic Village Model Primary School, Birnin Kebbi",
+  "Army Childrens School, Birnin Kebbi",
+  "OTHER"
+];
+const COURSES_GENERAL = [
+  "All 9 Courses - N30k (Full Package)",
+  "Digital Health Operations",
+  "Artificial Intelligence and Automations",
+  "Cyber Security",
+  "Management Information Systems (MIS)",
+  "Data Analytics",
+  "Computer Operations and Programming",
+  "Soft and Hardware Engineering (Practical)",
+  "Electrical and Electronic Engineering (Practical)",
+  "Networking (Practical)"
+];
+const COURSES_FORESIGHT = [
+  "All 4 Core Subjects - Foresight Pilot (Hausa, English, Maths, BST)",
+  "1. Hausa (Yaren Hausa) - Haruffa, Kalmomi, Girmama Juna - KPI",
+  "2. English - Family (Musa da Hauwa), My Home Ina Gida, Health Words - KPI",
+  "3. Mathematics (Lissafi) - Counting 1-100, Addition, Logic Giwa da Zomo - KPI",
+  "4. BST - Body Parts, Cleanliness, Living Things, Environment - KPI"
+];
+
+function generateIDs(isForesight:boolean){
+  const ts = Date.now().toString().slice(-5);
+  const rnd = Math.floor(10+Math.random()*90);
+  const prefix = isForesight ? "F" : "G";
+  return {
+    enrol: `DUCEE-${prefix}2026-${ts}${rnd}`,
+    dhr: `DHR-${prefix}2026-${ts}${rnd}`,
+    biz: `DUCEE-BIZ-${prefix}2026-${ts}${rnd}`
+  };
+}
+
+export default function DuceeV20(){
+  const [name,setName]=useState("");
+  const [phone,setPhone]=useState("");
+  const [track,setTrack]=useState("");
+  const [school,setSchool]=useState("");
+  const [otherSchool,setOtherSchool]=useState("");
+  const [classLevel,setClassLevel]=useState("");
+  const [course,setCourse]=useState("");
+  const [payMethod,setPayMethod]=useState("Paystack");
+  const [enrollments,setEnrollments]=useState<any[]>([]);
+  const [localPupils,setLocalPupils]=useState<any[]>([]);
+  const [lastEnrol,setLastEnrol]=useState<any>(null);
+  const [msg,setMsg]=useState("");
+  const [loading,setLoading]=useState(false);
+
+  const isForesight = track.includes("Primary") || track.includes("Foresight");
+  const courses = isForesight ? COURSES_FORESIGHT : COURSES_GENERAL;
+
+  useEffect(()=>{
+    fetchEnrollments();
+    const stored = JSON.parse(localStorage.getItem('DUCEE_PUPILS_LIST')||"[]");
+    setLocalPupils(stored);
+  },[]);
+
+  async function fetchEnrollments(){
+    const {data}=await supabase.from("foresight_enrollments").select("*").order("created_at",{ascending:false}).limit(50);
+    if(data) setEnrollments(data);
   }
+
+  async function enroll(){
+    if(!name||!phone||!track||!course){ setMsg("❌ Abeg fill all fields!"); return; }
+    if(isForesight && !school){ setMsg("❌ Select Pilot School!"); return; }
+    const finalSchool = school==="OTHER" ? otherSchool + " (Partnership)" : (school || "General Public");
+    if(school==="OTHER" && !otherSchool){ setMsg("❌ Enter Partnership School Name"); return; }
+
+    setLoading(true);
+    const ids = generateIDs(isForesight);
+    const payload = {
+      enrol_no: ids.enrol,
+      dhr_id: ids.dhr,
+      biz_id: ids.biz,
+      pupil_name: name,
+      full_name: name,
+      parent_phone: phone,
+      phone: phone,
+      track: track,
+      school_name: finalSchool,
+      class_level: classLevel,
+      course_package: course,
+      subjects: [course],
+      fee: isForesight ? "Foresight Free" : "N30000",
+      payment_status: isForesight ? "Foresight Sponsored - Free" : (payMethod==="Bank Transfer"?"Pending Bank Transfer":"Pending Paystack"),
+      payment_method: isForesight ? "Free" : payMethod,
+      status: `Joined - ${finalSchool}`
+    };
+
+    const {error} = await supabase.from("foresight_enrollments").insert([payload]);
+    setLoading(false);
+    
+    if(error){ setMsg("❌ DB Error: "+error.message); return; }
+
+    // 1 Phone = 10 pupils local storage
+    const list = JSON.parse(localStorage.getItem('DUCEE_PUPILS_LIST')||"[]");
+    list.push({name, enrol:ids.enrol, dhr:ids.dhr, biz:ids.biz, school:finalSchool, track, phone, class:classLevel, course});
+    localStorage.setItem('DUCEE_PUPILS_LIST', JSON.stringify(list));
+    setLocalPupils(list);
+    localStorage.setItem('DUCEE_DHR_ID',ids.dhr);
+    localStorage.setItem('DUCEE_ACAD_ID',ids.enrol);
+
+    setLastEnrol({ids, track, finalSchool});
+    setMsg(`<div style="background:#e8f5e9;border:2px solid #0a7a3c;border-radius:10px;padding:15px;text-align:left;">✅ <b style="color:#0a7a3c;">An yi rijista! Enrolled! Track: ${track}</b><br><br><b>DHR_ID:</b> <span style="background:yellow;padding:2px 6px;border-radius:4px;">${ids.dhr}</span> (${isForesight?"F=Foresight":"G=General"})<br><b>Academy Enrol No:</b> <strong>${ids.enrol}</strong><br><b>Biz ID:</b> <strong>${ids.biz}</strong><br><small>An ajiye a wayarka — ${isForesight?"Free Sponsored":"N30k"} — offline list updated</small></div>`);
+    setName(""); setPhone(""); setCourse(""); 
+    fetchEnrollments();
+  }
+
+  function clearLocal(){ if(confirm("Clear this phone list? Office sheet still safe!")){ localStorage.removeItem('DUCEE_PUPILS_LIST'); setLocalPupils([]); } }
+
+  return (
+    <div style={{maxWidth:900,margin:"0 auto",padding:12,fontFamily:"system-ui",background:"#f5f5f5",minHeight:"100vh"}}>
+      <div style={{maxWidth:900,margin:"20px auto",padding:20,background:"white",borderRadius:12,boxShadow:"0 4px 15px rgba(0,0,0,0.1)"}}>
+        <h3 style={{textAlign:"center",color:"#0a7a3c"}}>🎓 DUCEE OS V20 - ONE PAGE ENROLMENT PORTAL</h3>
+        <p style={{textAlign:"center",fontSize:12,color:"#666"}}>1 Phone = 10 Pupils Capture | F = Foresight Free | G = General N30k | DB: ducee-core-os</p>
+        <p style={{textAlign:"center",fontSize:12,color:"green",fontWeight:700}}>✅ Connected to Supabase | Total DB: {enrollments.length} | Phone List: {localPupils.length}/10</p>
+
+        <input value={name} onChange={e=>setName(e.target.value)} placeholder="Full Name / Pupil Name" style={{width:"100%",padding:14,margin:"8px 0",border:"1px solid #ccc",borderRadius:8,fontSize:15}} />
+        <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Phone e.g 080... / Parent Phone for Pupil" style={{width:"100%",padding:14,margin:"8px 0",border:"1px solid #ccc",borderRadius:8,fontSize:15}} />
+
+        <select value={track} onChange={e=>{setTrack(e.target.value); setCourse("");}} style={{width:"100%",padding:14,margin:"8px 0",borderRadius:8,border:"1.5px solid #0a7a3c",fontSize:15,fontWeight:600,minHeight:50,background:"#fff"}}>
+          <option value="">-- Select Track --</option>
+          <option value="Primary Pupil Foresight Free">🌟 Foresight Free - 10 Pilot Schools (Sponsored) - F2026</option>
+          <option value="General Public N30k">💼 General Public - N30k for 9 Courses (Full Package) - G2026</option>
+        </select>
+
+        {isForesight && (
+          <div style={{background:"#fff8e1",padding:12,border:"2px solid #b9770e",borderRadius:8,margin:"10px 0"}}>
+            <b style={{color:"#b9770e"}}>🌟 Select Pilot School:</b>
+            <select value={school} onChange={e=>setSchool(e.target.value)} style={{width:"100%",padding:14,margin:"8px 0",borderRadius:8,border:"1.5px solid #b9770e",fontSize:15,fontWeight:600,background:"#ffffff",minHeight:52}}>
+              <option value="">-- Select Pilot School --</option>
+              {PILOT_SCHOOLS.map(s=><option key={s} value={s}>{s==="OTHER"?"Other - For Partnership / Scale-up":s}</option>)}
+            </select>
+            {school==="OTHER" && <input value={otherSchool} onChange={e=>setOtherSchool(e.target.value)} placeholder="Enter School Name for partnership" style={{width:"100%",padding:12,margin:"5px 0",borderRadius:6,border:"1px solid #ccc"}} />}
+            <input value={classLevel} onChange={e=>setClassLevel(e.target.value)} placeholder="Class e.g Primary 4" style={{width:"100%",padding:12,margin:"5px 0",borderRadius:6,border:"1px solid #ccc"}} />
+          </div>
+        )}
+
+        {!isForesight && track && (
+          <input value={classLevel} onChange={e=>setClassLevel(e.target.value)} placeholder="Class / Level e.g SS3, Graduate" style={{width:"100%",padding:12,margin:"5px 0",borderRadius:6,border:"1px solid #ccc"}} />
+        )}
+
+        <select value={course} onChange={e=>setCourse(e.target.value)} style={{width:"100%",padding:14,margin:"8px 0",borderRadius:8,border:"1.5px solid #0a7a3c",fontSize:15,fontWeight:600,minHeight:50,background:"#fff"}}>
+          <option value="">-- Select Course Package --</option>
+          {courses.map(c=><option key={c} value={c}>{c}</option>)}
+        </select>
+
+        <div style={{padding:8,fontSize:12,color:"#0a7a3c",textAlign:"center"}}>
+          {isForesight ? "✅ Foresight: 4 Core ONLY - Hausa, English, Maths, BST — KPI aligned (Free, Sponsored)" : track ? "General: 9 Courses - N30k (Same package + Hair)" : ""}
+        </div>
+
+        {!isForesight && track && (
+          <div style={{margin:"15px 0",padding:12,background:"#f9f9f9",borderRadius:8}}>
+            <b>Payment Method:</b><br/>
+            <label><input type="radio" checked={payMethod==="Paystack"} onChange={()=>setPayMethod("Paystack")} /> Paystack (Instant)</label> &nbsp;
+            <label><input type="radio" checked={payMethod==="Bank Transfer"} onChange={()=>setPayMethod("Bank Transfer")} /> Bank Transfer</label>
+            {payMethod==="Bank Transfer" && <div style={{background:"#fff8e1",padding:12,border:"2px dashed #ff9800",marginTop:10,borderRadius:8}}><b>GT Bank:</b> Divine Ultimate Computers...<br/>Account: <b>0229676883</b><br/><span style={{color:"green"}}>Use Enrol No as narration!</span></div>}
+          </div>
+        )}
+
+        <button onClick={enroll} disabled={loading} style={{width:"100%",padding:14,background:"#0a7a3c",color:"white",border:"none",borderRadius:8,fontWeight:"bold",cursor:"pointer",marginTop:10,fontSize:16}}>{loading?"Saving to ducee-core-os...":"Enroll Now - Save to Supabase DB"}</button>
+        
+        <div style={{marginTop:15,padding:12,background:"#f0f8ff",borderRadius:8,minHeight:40,textAlign:"center"}} dangerouslySetInnerHTML={{__html: msg || "<span style='color:#666;font-size:12px'>Fill form and enroll...</span>"}} />
+
+        {localPupils.length>0 && (
+          <div style={{marginTop:15,background:"#eef7ff",padding:12,borderRadius:8}}>
+            <b>📱 Pupils captured on this phone (1 phone = {localPupils.length} pupils):</b>
+            <div style={{fontSize:12,marginTop:8}}>{localPupils.map((p:any,i:number)=><div key={i} style={{padding:4,borderBottom:"1px solid #ddd"}}>{i+1}. {p.name} | {p.enrol} | {p.school} | {p.course?.slice(0,30)}...</div>)}</div>
+            <button onClick={clearLocal} style={{marginTop:8,padding:"6px 12px",background:"#c0392b",color:"white",border:"none",borderRadius:5,fontSize:11}}>Clear Local List (Office Dashboard still safe)</button>
+          </div>
+        )}
+
+        {lastEnrol && !isForesight && payMethod==="Paystack" && (
+          <div style={{background:"#fff3cd",padding:15,borderRadius:10,border:"1px solid #ffc107",marginTop:20,textAlign:"center"}}>
+            <h4>💳 Complete Payment for N30k Track</h4><p>Enrol No: {lastEnrol.ids.enrol} | Biz ID: {lastEnrol.ids.biz}</p><p style={{fontSize:11}}>Paystack Live Key go dey here: pk_live_...</p>
+          </div>
+        )}
+      </div>
+
+      <div style={{maxWidth:900,margin:"20px auto",padding:20,background:"white",borderRadius:12}}>
+        <b>Live DB Enrollments from ducee-core-os — {enrollments.length}</b>
+        <div style={{marginTop:10}}>{enrollments.map((en:any)=><div key={en.id} style={{padding:8,border:"1px solid #eee",borderRadius:6,marginBottom:6,fontSize:12}}><b>{en.enrol_no}</b> ({en.dhr_id}) — {en.pupil_name} | {en.track} | {en.school_name} | {en.course_package} | {en.payment_status}</div>)}</div>
+      </div>
+    </div>
+  );
 }
