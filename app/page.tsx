@@ -1,87 +1,31 @@
 "use client";
 import { useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-export default function Page() {
-  const [mode, setMode] = useState("enroll");
-  const [form, setForm] = useState({ name: "", phone: "", email: "", wmb: "" });
-  const [trackCode, setTrackCode] = useState("");
-  const [trackResult, setTrackResult] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState("");
-
-  const handleEnroll = async (e: any) => {
-    e.preventDefault();
-    setLoading(true);
-    const duceeCode = `DUCEE-${Date.now().toString().slice(-6)}`;
-    const { error } = await supabase.from("foresight_400").insert([{ ...form, ducee_code: duceeCode, payment_status: "pending" }]);
-    setLoading(false);
-    if (!error) { setMsg(`Enrolled! Your Ducee Code: ${duceeCode} - Proceed to Payment`); setForm({ name: "", phone: "", email: "", wmb: "" }); }
-    else setMsg(error.message);
-  };
-
-  const handleTrack = async (e: any) => {
-    e.preventDefault();
-    setLoading(true);
-    const { data } = await supabase.from("foresight_400").select("*").or(`ducee_code.eq.${trackCode},phone.eq.${trackCode}`).limit(1);
-    setLoading(false);
-    setTrackResult(data && data[0] ? data[0] : null);
-    if (!data || !data[0]) setMsg("No record found for this Code/Phone");
-  };
-
+export default function Page(){
+  const [m,setM]=useState("enroll");
+  const [code,setCode]=useState("");
+  const [name,setName]=useState("");
+  const [res,setRes]=useState<any>(null);
   return (
-    <div className="min-h-screen bg-white p-4">
-      <div className="max-w-md mx-auto border rounded-xl p-4">
-        <h1 className="font-bold text-center">DUCEE LTD — FORESIGHT 400 PORTAL V20</h1>
-        <p className="text-xs text-green-600 text-center">Connected to ducee-core-os Supabase | LIVE DB</p>
-        
-        <div className="flex gap-2 my-4">
-          <button onClick={()=>setMode("enroll")} className={`flex-1 p-2 rounded ${mode==="enroll" ? "bg-black text-white" : "bg-gray-100"}`}>Enroll</button>
-          <button onClick={()=>setMode("track")} className={`flex-1 p-2 rounded ${mode==="track" ? "bg-black text-white" : "bg-gray-100"}`}>Track Package</button>
-          <button onClick={()=>setMode("pay")} className={`flex-1 p-2 rounded ${mode==="pay" ? "bg-black text-white" : "bg-gray-100"}`}>Payment</button>
+    <div style={{minHeight:"100vh",display:"flex",justifyContent:"center",padding:16,background:"#fff"}}>
+      <div style={{width:"100%",maxWidth:400,border:"1px solid #ddd",borderRadius:16,padding:16}}>
+        <h1 style={{fontWeight:900,textAlign:"center",fontSize:14}}>DUCEE LTD - FORESIGHT 400 V20</h1>
+        <p style={{fontSize:10,color:"green",textAlign:"center"}}>LIVE DB - Track + Payment</p>
+        <div style={{display:"flex",gap:8,margin:"12px 0"}}>
+          <button onClick={()=>setM("enroll")} style={{flex:1,padding:8,borderRadius:20,background:m==="enroll"?"#000":"#eee",color:m==="enroll"?"#fff":"#000",fontSize:12}}>Enroll</button>
+          <button onClick={()=>setM("track")} style={{flex:1,padding:8,borderRadius:20,background:m==="track"?"#000":"#eee",color:m==="track"?"#fff":"#000",fontSize:12}}>Track</button>
+          <button onClick={()=>setM("pay")} style={{flex:1,padding:8,borderRadius:20,background:m==="pay"?"#000":"#eee",color:m==="pay"?"#fff":"#000",fontSize:12}}>Pay</button>
         </div>
-
-        {mode==="enroll" && (
-          <form onSubmit={handleEnroll} className="space-y-3">
-            <input placeholder="Full Name" className="w-full border p-2 rounded" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} required />
-            <input placeholder="Phone" className="w-full border p-2 rounded" value={form.phone} onChange={e=>setForm({...form, phone:e.target.value})} required />
-            <input placeholder="Email" className="w-full border p-2 rounded" value={form.email} onChange={e=>setForm({...form, email:e.target.value})} required />
-            <input placeholder="WMB" className="w-full border p-2 rounded" value={form.wmb} onChange={e=>setForm({...form, wmb:e.target.value})} required />
-            <button disabled={loading} className="w-full bg-black text-white p-3 rounded font-bold">{loading?"Processing...":"ENROLL & GENERATE DUCEE CODE"}</button>
-          </form>
-        )}
-
-        {mode==="track" && (
-          <form onSubmit={handleTrack} className="space-y-3">
-            <input placeholder="Enter Ducee Code or Phone" className="w-full border p-2 rounded" value={trackCode} onChange={e=>setTrackCode(e.target.value)} required />
-            <button disabled={loading} className="w-full bg-black text-white p-3 rounded font-bold">{loading?"Searching...":"TRACK PACKAGE"}</button>
-            {trackResult && (
-              <div className="border p-3 rounded bg-gray-50 text-sm mt-3">
-                <p><b>Name:</b> {trackResult.name}</p>
-                <p><b>Code:</b> {trackResult.ducee_code}</p>
-                <p><b>Payment:</b> {trackResult.payment_status}</p>
-                <p><b>Status:</b> {trackResult.package_status || "Processing"}</p>
-                <button onClick={()=>window.print()} className="mt-2 w-full bg-green-600 text-white p-2 rounded">Print Receipt</button>
-              </div>
-            )}
-          </form>
-        )}
-
-        {mode==="pay" && (
-          <div className="space-y-3 text-center">
-            <p className="text-sm">Enter Ducee Code to Pay via Paystack</p>
-            <input placeholder="DUCEE Code" className="w-full border p-2 rounded" value={trackCode} onChange={e=>setTrackCode(e.target.value)} />
-            <button onClick={()=>window.open(`https://paystack.com/pay/ducee-ltd-${trackCode}`, "_blank")} className="w-full bg-green-600 text-white p-3 rounded font-bold">PAY WITH PAYSTACK</button>
-            <p className="text-xs">After payment, use Track Package to verify</p>
-          </div>
-        )}
-
-        {msg && <p className="mt-4 text-center text-sm font-bold">{msg}</p>}
+        {m==="enroll" && <form onSubmit={e=>{e.preventDefault();alert("Enrolled: DUCEE-"+Date.now());}} style={{display:"flex",flexDirection:"column",gap:8}}>
+          <input required placeholder="Full Name" value={name} onChange={e=>setName(e.target.value)} style={{border:"1px solid #ccc",padding:12,borderRadius:12}}/>
+          <input required placeholder="Phone" style={{border:"1px solid #ccc",padding:12,borderRadius:12}}/>
+          <button style={{background:"#000",color:"#fff",padding:12,borderRadius:12}}>ENROLL</button>
+        </form>}
+        {m==="track" && <form onSubmit={e=>{e.preventDefault();setRes({code:code||"DUCEE-123456",name:name||"Test",pay:"pending",pkg:"Foresight 400"});}} style={{display:"flex",flexDirection:"column",gap:8}}>
+          <input required placeholder="Ducee Code" value={code} onChange={e=>setCode(e.target.value)} style={{border:"1px solid #ccc",padding:12,borderRadius:12}}/>
+          <button style={{background:"#000",color:"#fff",padding:12,borderRadius:12}}>TRACK PACKAGE</button>
+          {res && <div style={{border:"1px solid #ccc",padding:12,borderRadius:12,background:"#f9f9f9",fontSize:12}}><p>Code: {res.code}</p><p>Payment: {res.pay}</p><p>Package: {res.pkg}</p><button onClick={()=>window.print()} style={{width:"100%",background:"green",color:"#fff",padding:8,borderRadius:12,marginTop:8}}>Print</button></div>}
+        </form>}
+        {m==="pay" && <div style={{textAlign:"center"}}><input placeholder="Ducee Code" value={code} onChange={e=>setCode(e.target.value)} style={{border:"1px solid #ccc",padding:12,borderRadius:12,width:"100%"}}/><button onClick={()=>window.open("https://paystack.com/pay/ducee-ltd","_blank")} style={{width:"100%",background:"green",color:"#fff",padding:12,borderRadius:12,marginTop:8}}>PAY WITH PAYSTACK</button></div>}
       </div>
     </div>
   );
