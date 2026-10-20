@@ -1,3 +1,4 @@
+bash
 cd /path/to/nextjs-boilerplate
 rm package.json
 npm init -y
