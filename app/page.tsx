@@ -1,78 +1,87 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 
-export default function Page(){
-  const [name,setName]=useState(""); const [phone,setPhone]=useState(""); const [track,setTrack]=useState("");
-  const [school,setSchool]=useState(""); const [course,setCourse]=useState(""); const [classL,setClassL]=useState("");
-  const [pay,setPay]=useState("Paystack"); const [msg,setMsg]=useState(""); const [loading,setLoading]=useState(false);
-  const [dbCount,setDbCount]=useState(0); const [localList,setLocalList]=useState<any[]>([]);
-  
-  const isF = track.includes("Primary") || track.includes("Foresight");
-  const PILOT = ["ECWA Academy Badariya","Joda Primary","Brilliance Primary","High Standard","Royal Kids Academy","Kauran Gwandu Model","Gesse Phase 1 Model","Tudun Wada Model","Mechanic Village Model","Army Childrens School","OTHER"];
-  const COURSES_F = ["All 4 Core - Hausa, English, Maths, BST","Hausa KPI","English KPI","Mathematics KPI","BST KPI"];
-  const COURSES_G = ["All 9 Courses - N30k Full","Digital Health Operations","AI and Automations","Cyber Security","MIS","Data Analytics","Computer Operations & Programming","Hardware & Software Eng","Electrical & Electronic Eng","Networking"];
-  const courses = isF ? COURSES_F : COURSES_G;
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
-  useEffect(()=>{ 
-    try{ const l=JSON.parse(localStorage.getItem('DUCEE_PUPILS_LIST')||"[]"); setLocalList(l); }catch{}
-    loadDB();
-  },[]);
+export default function Page() {
+  const [mode, setMode] = useState("enroll");
+  const [form, setForm] = useState({ name: "", phone: "", email: "", wmb: "" });
+  const [trackCode, setTrackCode] = useState("");
+  const [trackResult, setTrackResult] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
 
-  async function loadDB(){
-    try{
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      if(!url || !key) return;
-      const { createClient } = await import("@supabase/supabase-js");
-      const supa = createClient(url,key);
-      const {data} = await supa.from("foresight_enrollments").select("id").limit(100);
-      if(data) setDbCount(data.length);
-    }catch{}
-  }
-
-  async function enroll(){
-    if(!name||!phone||!track||!course){ setMsg("❌ Fill all fields"); return; }
-    if(isF && !school){ setMsg("❌ Select Pilot School"); return; }
+  const handleEnroll = async (e: any) => {
+    e.preventDefault();
     setLoading(true);
-    const ts=Date.now().toString().slice(-5); const rnd=Math.floor(10+Math.random()*90); const pref=isF?"F":"G";
-    const enrol=`DUCEE-${pref}2026-${ts}${rnd}`; const dhr=`DHR-${pref}2026-${ts}${rnd}`; const biz=`DUCEE-BIZ-${pref}2026-${ts}${rnd}`;
-    const finalSchool = school==="OTHER" ? classL+" (Partnership)" : (school || "General Public");
-    
-    try{
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL; const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      if(!url || !key){ throw new Error("Supabase env vars not set in Vercel - add them in Settings -> Environment Variables"); }
-      const { createClient } = await import("@supabase/supabase-js");
-      const supa = createClient(url,key);
-      const {error} = await supa.from("foresight_enrollments").insert([{
-        enrol_no:enrol, dhr_id:dhr, biz_id:biz, pupil_name:name, full_name:name, parent_phone:phone, phone, track, school_name:finalSchool, class_level:classL, course_package:course, subjects:[course], fee:isF?"Foresight Free":"N30000", payment_status:isF?"Foresight Sponsored - Free":(pay==="Bank Transfer"?"Pending Bank Transfer":"Pending Paystack"), payment_method:isF?"Free":pay, status:`Joined - ${finalSchool}`
-      }]);
-      if(error) throw error;
-      
-      const list=JSON.parse(localStorage.getItem('DUCEE_PUPILS_LIST')||"[]"); list.push({name,enrol,dhr,school:finalSchool}); localStorage.setItem('DUCEE_PUPILS_LIST',JSON.stringify(list)); setLocalList(list);
-      setMsg(`✅ SUCCESS! ${enrol} | ${dhr} | ${biz} | ${finalSchool} - ${isF?"F=Foresight FREE":"G=General N30k"}`); setName(""); setPhone(""); setCourse(""); setDbCount(dbCount+1);
-    }catch(e:any){ setMsg("❌ "+e.message); }
+    const duceeCode = `DUCEE-${Date.now().toString().slice(-6)}`;
+    const { error } = await supabase.from("foresight_400").insert([{ ...form, ducee_code: duceeCode, payment_status: "pending" }]);
     setLoading(false);
-  }
+    if (!error) { setMsg(`Enrolled! Your Ducee Code: ${duceeCode} - Proceed to Payment`); setForm({ name: "", phone: "", email: "", wmb: "" }); }
+    else setMsg(error.message);
+  };
+
+  const handleTrack = async (e: any) => {
+    e.preventDefault();
+    setLoading(true);
+    const { data } = await supabase.from("foresight_400").select("*").or(`ducee_code.eq.${trackCode},phone.eq.${trackCode}`).limit(1);
+    setLoading(false);
+    setTrackResult(data && data[0] ? data[0] : null);
+    if (!data || !data[0]) setMsg("No record found for this Code/Phone");
+  };
 
   return (
-    <div style={{maxWidth:900,margin:"0 auto",padding:12,background:"#f5f5f5",minHeight:"100vh"}}>
-      <div style={{background:"white",padding:20,borderRadius:12,boxShadow:"0 4px 15px rgba(0,0,0,0.1)"}}>
-        <h3 style={{textAlign:"center",color:"#0a7a3c"}}>🎓 DUCEE OS V20.2 - FIXED BUILD</h3>
-        <p style={{textAlign:"center",fontSize:12}}>F=Foresight Free | G=General N30k | DB: ducee-core-os | DB Total: {dbCount} | Phone: {localList.length}/10</p>
-        <input value={name} onChange={e=>setName(e.target.value)} placeholder="Full Name / Pupil Name" style={{width:"100%",padding:14,margin:"8px 0",border:"1px solid #ccc",borderRadius:8}} />
-        <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Phone 080..." style={{width:"100%",padding:14,margin:"8px 0",border:"1px solid #ccc",borderRadius:8}} />
-        <select value={track} onChange={e=>{setTrack(e.target.value); setCourse("");}} style={{width:"100%",padding:14,margin:"8px 0",border:"1.5px solid #0a7a3c",borderRadius:8,fontWeight:700}}>
-          <option value="">-- Select Track --</option>
-          <option value="Primary Pupil Foresight Free">🌟 Foresight Free - 10 Pilot Schools (F2026)</option>
-          <option value="General Public N30k">💼 General Public - N30k 9 Courses (G2026)</option>
-        </select>
-        {isF && <div style={{background:"#fff8e1",padding:12,border:"2px solid #b9770e",borderRadius:8}}><select value={school} onChange={e=>setSchool(e.target.value)} style={{width:"100%",padding:14,margin:"8px 0",borderRadius:8}}><option value="">-- Pilot School --</option>{PILOT.map(s=><option key={s} value={s}>{s}</option>)}</select><input value={classL} onChange={e=>setClassL(e.target.value)} placeholder="Class e.g Primary 4" style={{width:"100%",padding:12,margin:"5px 0",border:"1px solid #ccc",borderRadius:6}} /></div>}
-        {!isF && track && <input value={classL} onChange={e=>setClassL(e.target.value)} placeholder="Class/Level" style={{width:"100%",padding:12,margin:"5px 0",border:"1px solid #ccc",borderRadius:6}} />}
-        <select value={course} onChange={e=>setCourse(e.target.value)} style={{width:"100%",padding:14,margin:"8px 0",border:"1.5px solid #0a7a3c",borderRadius:8,fontWeight:600}}><option value="">-- Select Course Package --</option>{courses.map(c=><option key={c} value={c}>{c}</option>)}</select>
-        {!isF && track && <div style={{padding:12,background:"#f9f9f9",borderRadius:8}}><b>Payment:</b> <label><input type="radio" checked={pay==="Paystack"} onChange={()=>setPay("Paystack")}/> Paystack</label> <label><input type="radio" checked={pay==="Bank Transfer"} onChange={()=>setPay("Bank Transfer")}/> Bank</label>{pay==="Bank Transfer" && <div style={{background:"#fff8e1",padding:10,marginTop:8,border:"2px dashed orange",borderRadius:8}}>GT Bank: 0229676883 - Use Enrol No</div>}</div>}
-        <button onClick={enroll} disabled={loading} style={{width:"100%",padding:14,background:"#0a7a3c",color:"white",border:"none",borderRadius:8,fontWeight:"bold"}}>{loading?"Saving...":"Enroll Now - Save to Supabase"}</button>
-        <div style={{marginTop:12,padding:12,background:msg.includes("SUCCESS")?"#e8f5e9":"#f0f8ff",borderRadius:8,textAlign:"center"}}>{msg||"Fill form and enroll..."}</div>
-        {localList.length>0 && <div style={{marginTop:12,background:"#eef7ff",padding:10,borderRadius:8,fontSize:12}}><b>📱 {localList.length} pupils on this phone:</b>{localList.map((p:any,i:number)=><div key={i}>{i+1}. {p.name} | {p.enrol} | {p.school}</div>)}</div>}
+    <div className="min-h-screen bg-white p-4">
+      <div className="max-w-md mx-auto border rounded-xl p-4">
+        <h1 className="font-bold text-center">DUCEE LTD — FORESIGHT 400 PORTAL V20</h1>
+        <p className="text-xs text-green-600 text-center">Connected to ducee-core-os Supabase | LIVE DB</p>
+        
+        <div className="flex gap-2 my-4">
+          <button onClick={()=>setMode("enroll")} className={`flex-1 p-2 rounded ${mode==="enroll" ? "bg-black text-white" : "bg-gray-100"}`}>Enroll</button>
+          <button onClick={()=>setMode("track")} className={`flex-1 p-2 rounded ${mode==="track" ? "bg-black text-white" : "bg-gray-100"}`}>Track Package</button>
+          <button onClick={()=>setMode("pay")} className={`flex-1 p-2 rounded ${mode==="pay" ? "bg-black text-white" : "bg-gray-100"}`}>Payment</button>
+        </div>
+
+        {mode==="enroll" && (
+          <form onSubmit={handleEnroll} className="space-y-3">
+            <input placeholder="Full Name" className="w-full border p-2 rounded" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} required />
+            <input placeholder="Phone" className="w-full border p-2 rounded" value={form.phone} onChange={e=>setForm({...form, phone:e.target.value})} required />
+            <input placeholder="Email" className="w-full border p-2 rounded" value={form.email} onChange={e=>setForm({...form, email:e.target.value})} required />
+            <input placeholder="WMB" className="w-full border p-2 rounded" value={form.wmb} onChange={e=>setForm({...form, wmb:e.target.value})} required />
+            <button disabled={loading} className="w-full bg-black text-white p-3 rounded font-bold">{loading?"Processing...":"ENROLL & GENERATE DUCEE CODE"}</button>
+          </form>
+        )}
+
+        {mode==="track" && (
+          <form onSubmit={handleTrack} className="space-y-3">
+            <input placeholder="Enter Ducee Code or Phone" className="w-full border p-2 rounded" value={trackCode} onChange={e=>setTrackCode(e.target.value)} required />
+            <button disabled={loading} className="w-full bg-black text-white p-3 rounded font-bold">{loading?"Searching...":"TRACK PACKAGE"}</button>
+            {trackResult && (
+              <div className="border p-3 rounded bg-gray-50 text-sm mt-3">
+                <p><b>Name:</b> {trackResult.name}</p>
+                <p><b>Code:</b> {trackResult.ducee_code}</p>
+                <p><b>Payment:</b> {trackResult.payment_status}</p>
+                <p><b>Status:</b> {trackResult.package_status || "Processing"}</p>
+                <button onClick={()=>window.print()} className="mt-2 w-full bg-green-600 text-white p-2 rounded">Print Receipt</button>
+              </div>
+            )}
+          </form>
+        )}
+
+        {mode==="pay" && (
+          <div className="space-y-3 text-center">
+            <p className="text-sm">Enter Ducee Code to Pay via Paystack</p>
+            <input placeholder="DUCEE Code" className="w-full border p-2 rounded" value={trackCode} onChange={e=>setTrackCode(e.target.value)} />
+            <button onClick={()=>window.open(`https://paystack.com/pay/ducee-ltd-${trackCode}`, "_blank")} className="w-full bg-green-600 text-white p-3 rounded font-bold">PAY WITH PAYSTACK</button>
+            <p className="text-xs">After payment, use Track Package to verify</p>
+          </div>
+        )}
+
+        {msg && <p className="mt-4 text-center text-sm font-bold">{msg}</p>}
       </div>
     </div>
   );
