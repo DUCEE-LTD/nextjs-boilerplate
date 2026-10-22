@@ -10,7 +10,7 @@ export default function Home() {
     setStatus({
       id: trackId,
       from: "Lagos",
-      to: "Ibadan",
+      to: "Birnin Kebbi",
       status: "In Transit - Oyo Hub",
       date: new Date().toLocaleDateString(),
     });
